@@ -1,6 +1,5 @@
 package com.speedledger.measure.jira
 
-import com.typesafe.config.ConfigFactory
 import akka.actor.{OneForOneStrategy, Props, ActorLogging, Actor}
 import java.util.concurrent.TimeUnit
 import com.github.nscala_time.time.Implicits._
@@ -13,15 +12,17 @@ import scala.util.{Failure, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.parboiled.common.{Base64}
 import org.json4s.JsonAST
-import org.json4s.native.JsonMethods._
 import org.json4s.JsonDSL._
 import akka.actor.SupervisorStrategy.Escalate
 
 case class IssueKey(key: String)
 case class JiraQuery(jql: String, startAt: Int)
-case class TotalIssues(total: Int)
+case class TotalNumberOfIssues(total: Int)
 case class IssueAck(issueKey: IssueKey)
 
+/**
+ * Actor that handles fetching issues from jira
+ */
 class JiraActor extends Actor with ActorLogging with JsonSupport with JiraSupport {
 
   val pipeline: HttpRequest ⇒ Future[JValue] = addCredentials(BasicHttpCredentials(userName, password)) ~> (sendReceive ~> unmarshal[JValue])
@@ -42,7 +43,7 @@ class JiraActor extends Actor with ActorLogging with JsonSupport with JiraSuppor
     pipeline(Post(searchUrl, query)) onComplete {
       case Success(response) =>
         val issues = response \ "issues"
-        val totalIssues = response.extract[TotalIssues]
+        val totalIssues = response.extract[TotalNumberOfIssues]
         val moreIssues = totalIssues.total > startAt + maxResults
         val nextQuery = if (moreIssues) {
           Some(JiraQuery(jql, startAt + maxResults))
@@ -89,6 +90,13 @@ class JiraActor extends Actor with ActorLogging with JsonSupport with JiraSuppor
   }
 
   def receive = receiveUpdate
+
+  override def unhandled(message: Any): Unit = {
+    message match {
+      case ex: Exception =>
+        throw ex
+    }
+  }
 
   override val supervisorStrategy =
     OneForOneStrategy() {

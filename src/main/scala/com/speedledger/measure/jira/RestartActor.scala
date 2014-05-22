@@ -8,6 +8,9 @@ import scala.concurrent.duration._
 import akka.actor.OneForOneStrategy
 import scala.concurrent.ExecutionContext.Implicits.global
 
+/**
+ * Actor to handle restart of the UpdaterActor when a failure occurs
+ */
 class RestartActor extends Actor with ActorLogging {
 
   val updater = context.actorOf(Props[UpdaterActor], "updater")
@@ -19,7 +22,7 @@ class RestartActor extends Actor with ActorLogging {
   override val supervisorStrategy =
     OneForOneStrategy() {
       case ex: Exception =>
-        log.error(ex, "Exception! Restarting...")
+        log.error(ex, "Exception during jira fetch. Restarting actor...")
         Restart
     }
 

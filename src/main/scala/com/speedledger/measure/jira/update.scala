@@ -1,14 +1,11 @@
 package com.speedledger.measure.jira
 
 import akka.actor.{OneForOneStrategy, ActorLogging, Props, Actor}
-import com.typesafe.config.ConfigFactory
 import java.io.{PrintWriter, File}
 import scala.util.Try
 import org.joda.time.DateTime
 import scala.io.Source
-import scala.concurrent.duration.Duration
-import akka.actor.SupervisorStrategy.{Stop, Restart, Escalate}
-import scala.concurrent.duration._
+import akka.actor.SupervisorStrategy.Escalate
 
 case object Tick
 case object Tock
