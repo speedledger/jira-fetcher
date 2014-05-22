@@ -10,13 +10,12 @@ import scala.util.Success
 import scala.util.Failure
 import scala.concurrent.Future
 
-case class JiraChangelog(changelogId: ChangelogId, history: JsonAST.JObject)
-case class ChangelogId(id: String)
+case class ElasticData(data: JsonAST.JValue, index: String, typeName: String, dataId: String, ack: Any)
 
 /**
- * Actor that handles communication with elasticsearch. It can handle JiraIssue and JiraChangelog
+ * Actor that handles communication with elasticsearch.
  */
-class ElasticSearchActor extends Actor with ActorLogging with JsonSupport {
+class ElasticsearchActor extends Actor with ActorLogging with JsonSupport {
 
   val config = ConfigFactory.load().getConfig("elasticsearch")
   val elasticUrl = config.getString("url")
@@ -26,27 +25,15 @@ class ElasticSearchActor extends Actor with ActorLogging with JsonSupport {
   val pipeline: HttpRequest ⇒ Future[HttpResponse] = addCredentials(BasicHttpCredentials(userName, password)) ~> sendAndReceive
 
   override def receive = {
-    case JiraIssue(issueData, issueName) =>
-      log.debug(s"Sending issue ${issueName.key} to elastic")
-      val issueUri = s"$elasticUrl/jira/issue/${issueName.key}"
+    case ElasticData(data, index, typeName, dataId, ack) =>
+      val issueUri = s"$elasticUrl/$index/$typeName/$dataId"
       val originalSender = sender()
-      pipeline(Put(issueUri, issueData)) onComplete {
+      pipeline(Put(issueUri, data)) onComplete {
         case Success(response) =>
-          log.debug(s"Inserted issue ${issueName.key} into elastic")
-          originalSender ! ElasticIssueAck(IssueKey(issueName.key))
+          log.debug(s"Inserted $typeName $dataId into index $index")
+          originalSender ! ack
         case Failure(ex) =>
-          log.error(ex, s"Error inserting issue ${issueName.key} into elasticsearch")
-          originalSender ! ex
-      }
-    case JiraChangelog(changelogId, history) =>
-      val changelogUri = s"$elasticUrl.dsf/jira/changelog/${changelogId.id}"
-      val originalSender = sender()
-      pipeline(Put(changelogUri, history)) onComplete {
-        case Success(response) =>
-          log.debug(s"Inserted changelog ${changelogId.id} into elastic")
-          originalSender ! ElasticChangelogAck(changelogId)
-        case Failure(ex) =>
-          log.error(ex, s"Error inserting changelog ${changelogId.id} into elasticsearch")
+          log.error(ex, s"Error inserting $typeName $dataId into elasticsearch")
           originalSender ! ex
       }
   }

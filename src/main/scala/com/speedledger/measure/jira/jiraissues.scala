@@ -10,6 +10,7 @@ import scala.concurrent.Future
 import org.json4s.JsonAST
 
 case class JiraIssue(issue: JValue, issueKey: IssueKey)
+case class ChangelogId(id: String)
 case class ElasticIssueAck(issue: IssueKey)
 case class ElasticChangelogAck(changelog: ChangelogId)
 
@@ -27,7 +28,7 @@ class JiraIssueActor extends Actor with ActorLogging with JsonSupport with JiraS
       val changelogId = history.extract[ChangelogId]
       val historyWithIssueName = history ~ ("issueName" -> key)
       log.debug("Sending changelog to elastic for issue: " + key)
-      elasticsearch ! JiraChangelog(changelogId, historyWithIssueName)
+      elasticsearch ! ElasticData(historyWithIssueName, "jira", "changelog", changelogId.id, ElasticChangelogAck(changelogId))
       changelogId.id
   }
 
@@ -75,7 +76,7 @@ class JiraIssueActor extends Actor with ActorLogging with JsonSupport with JiraS
   def receiveJiraIssue: Receive = {
     case JiraIssue(issue, issueKey) =>
       log.debug("Processing issue")
-      elasticsearch ! JiraIssue(issue, issueKey)
+      elasticsearch ! ElasticData(issue, "jira", "issue", issueKey.key, ElasticIssueAck(issueKey))
       context.become(awaitIssueAck(issueKey))
   }
 

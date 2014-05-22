@@ -17,17 +17,17 @@ class ElasticsearchActorTest(_system: ActorSystem) extends TestKit(_system) with
   }
 
   "ElasticSearchActor" must {
-    "Send ack back when processing of Issue is done" in {
+    "Send ack back when processing is done" in {
       val request = Promise[HttpRequest]()
       val elastic = TestActorRef(Props(new ElasticSearchActorMock(request)))
       val json = parse(""" { "test" : "test" } """)
-      elastic ! JiraIssue(json, IssueKey("TECH-58"))
+      elastic ! ElasticData(json, "jira", "issue", "TECH-58", ElasticIssueAck(IssueKey("TECH-58")))
       expectMsg(ElasticIssueAck(IssueKey("TECH-58")))
     }
   }
 }
 
-class ElasticSearchActorMock(request: Promise[HttpRequest]) extends ElasticSearchActor {
+class ElasticSearchActorMock(request: Promise[HttpRequest]) extends ElasticsearchActor {
   // Grab the HTTP request and mock the result
   override def sendAndReceive = in => {
     request.success(in)

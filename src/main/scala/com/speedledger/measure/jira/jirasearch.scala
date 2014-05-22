@@ -3,15 +3,12 @@ package com.speedledger.measure.jira
 import akka.actor.{OneForOneStrategy, Props, ActorLogging, Actor}
 import java.util.concurrent.TimeUnit
 import com.github.nscala_time.time.Implicits._
-import org.json4s.JsonAST.{JObject, JValue}
-import spray.http.{HttpRequest, BasicHttpCredentials}
+import org.json4s.JsonAST.JValue
 import scala.concurrent.Future
 import spray.http._
 import spray.client.pipelining._
 import scala.util.{Failure, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
-import org.parboiled.common.{Base64}
-import org.json4s.JsonAST
 import org.json4s.JsonDSL._
 import akka.actor.SupervisorStrategy.Escalate
 
@@ -27,7 +24,7 @@ class JiraActor extends Actor with ActorLogging with JsonSupport with JiraSuppor
 
   val pipeline: HttpRequest ⇒ Future[JValue] = addCredentials(BasicHttpCredentials(userName, password)) ~> (sendReceive ~> unmarshal[JValue])
 
-  def processIssue(issue: JsonAST.JValue): IssueKey = {
+  def processIssue(issue: JValue): IssueKey = {
     val issueKey = issue.extract[IssueKey]
     val issueActor = context.actorOf(Props[JiraIssueActor])
     issueActor ! JiraIssue(issue, issueKey)
@@ -72,7 +69,7 @@ class JiraActor extends Actor with ActorLogging with JsonSupport with JiraSuppor
             context.parent ! Tock
         }
       } else {
-        log.debug("Waiting for ack from more issues: " + issueKeys.toString())
+        log.debug("Waiting for ack from more issues: " + updatedIssueKeys.toString())
         context.become(waitForAcc(updatedIssueKeys, nextQuery))
       }
   }

@@ -11,5 +11,5 @@ object JiraFetcher extends App with JsonSupport {
   val log = Logging.getLogger(system, this)
   log.info("Starting jira fetcher actor system")
   val restartActor = system.actorOf(Props[RestartActor], "restart")
-  val elasticsearch = system.actorOf(Props[ElasticSearchActor], "elasticsearch")
+  val elasticsearch = system.actorOf(Props[ElasticsearchActor], "elasticsearch")
 }
