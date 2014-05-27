@@ -7,7 +7,7 @@ import spray.http.{HttpRequest, BasicHttpCredentials}
 import scala.util.{Failure, Success}
 import org.json4s.JsonDSL._
 import scala.concurrent.Future
-import org.json4s.JsonAST
+import scala.concurrent.duration._
 
 case class JiraIssue(issue: JValue, issueKey: IssueKey)
 case class ChangelogId(id: String)
@@ -23,13 +23,31 @@ class JiraIssueActor extends Actor with ActorLogging with JsonSupport with JiraS
   import context.dispatcher
   val elasticsearch = context.actorSelection("/user/elasticsearch")
   val pipeline: HttpRequest ⇒ Future[JValue] = addCredentials(BasicHttpCredentials(userName, password)) ~> (sendReceive ~> unmarshal[JValue])
+  context.setReceiveTimeout(10 minutes)
 
-  def processChangelog(history: JObject, key: String): String = {
-      val changelogId = history.extract[ChangelogId]
-      val historyWithIssueName = history ~ ("issueName" -> key)
-      log.debug("Sending changelog to elastic for issue: " + key)
-      elasticsearch ! ElasticData(historyWithIssueName, "jira", "changelog", changelogId.id, ElasticChangelogAck(changelogId))
-      changelogId.id
+  override def receive = receiveJiraIssue
+
+  def receiveJiraIssue: Receive = {
+    case JiraIssue(issue, issueKey) =>
+      log.debug("Processing issue")
+      elasticsearch ! ElasticData(DocumentLocation("jira", "issue", issueKey.key), issue, ElasticIssueAck(issueKey))
+      context.become(awaitIssueAck(issueKey))
+  }
+
+  def awaitIssueAck(awaitingKey: IssueKey): Receive = {
+    case ElasticIssueAck(issue) if issue == awaitingKey =>
+      fetchChangelog(issue)
+  }
+
+  def awaitChangelogAck(changelogIds: Set[String], issueKey: IssueKey): Receive = {
+    case ElasticChangelogAck(changelog) =>
+      val remainingIds = changelogIds - changelog.id
+      if (remainingIds.isEmpty) {
+        context.parent ! IssueAck(issueKey)
+        context.stop(self)
+      } else {
+        context.become(awaitChangelogAck(remainingIds, issueKey))
+      }
   }
 
   def fetchChangelog(issueKey: IssueKey) = {
@@ -55,29 +73,12 @@ class JiraIssueActor extends Actor with ActorLogging with JsonSupport with JiraS
     }
   }
 
-  def awaitChangelogAck(changelogIds: Set[String], issueKey: IssueKey): Receive = {
-    case ElasticChangelogAck(changelog) =>
-      val remainingIds = changelogIds - changelog.id
-      if (remainingIds.isEmpty) {
-        context.parent ! IssueAck(issueKey)
-        context.stop(self)
-      } else {
-        context.become(awaitChangelogAck(remainingIds, issueKey))
-      }
-  }
-
-  def awaitIssueAck(awaitingKey: IssueKey): Receive = {
-    case ElasticIssueAck(issue) =>
-      if (issue == awaitingKey) {
-        fetchChangelog(issue)
-      }
-  }
-
-  def receiveJiraIssue: Receive = {
-    case JiraIssue(issue, issueKey) =>
-      log.debug("Processing issue")
-      elasticsearch ! ElasticData(issue, "jira", "issue", issueKey.key, ElasticIssueAck(issueKey))
-      context.become(awaitIssueAck(issueKey))
+  def processChangelog(history: JObject, key: String): String = {
+    val changelogId = history.extract[ChangelogId]
+    val historyWithIssueName = history ~ ("issueName" -> key)
+    log.debug("Sending changelog to elastic for issue: " + key)
+    elasticsearch ! ElasticData(DocumentLocation("jira", "changelog", changelogId.id), historyWithIssueName, ElasticChangelogAck(changelogId))
+    changelogId.id
   }
 
   override def unhandled(message: Any): Unit = {
@@ -86,6 +87,4 @@ class JiraIssueActor extends Actor with ActorLogging with JsonSupport with JiraS
         throw ex
     }
   }
-
-  override def receive = receiveJiraIssue
 }

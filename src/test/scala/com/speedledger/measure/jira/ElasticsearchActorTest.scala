@@ -29,13 +29,13 @@ class ElasticsearchActorTest(_system: ActorSystem) extends TestKit(_system) with
 
     "Send ack back when processing is done" in {
       val elastic = TestActorRef(Props(new ElasticsearchActorMock(success)))
-      elastic ! ElasticData(json, "jira", "issue", "TECH-58", ElasticIssueAck(IssueKey("TECH-58")))
+      elastic ! ElasticData(DocumentLocation("jira", "issue", "TECH-58"), json, ElasticIssueAck(IssueKey("TECH-58")))
       expectMsg(ElasticIssueAck(IssueKey("TECH-58")))
     }
 
     "Send back exception when failure" in {
       val elastic = TestActorRef(Props(new ElasticsearchActorMock(failure)))
-      elastic ! ElasticData(json, "jira", "issue", "TECH-58", ElasticIssueAck(IssueKey("TECH-58")))
+      elastic ! ElasticData(DocumentLocation("jira", "issue", "TECH-58"), json, ElasticIssueAck(IssueKey("TECH-58")))
       expectMsgAllClassOf(classOf[RuntimeException])
     }
   }

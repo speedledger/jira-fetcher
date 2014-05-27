@@ -15,7 +15,7 @@ case class Update(lastUpdateTime: DateTime)
 class UpdaterActor extends Actor with ActorLogging {
 
   var jira = context.actorOf(Props[JiraActor], "jira")
-  val timeFile = new File("nextQueryTimeFile")
+  val timeFile = new File("nextQueryTime")
   val lastQueryTime = Try(Source.fromFile(timeFile).getLines().mkString("\n").toLong).map(new DateTime(_)).getOrElse(new DateTime(0))
 
   def awaitTock: Receive = {
