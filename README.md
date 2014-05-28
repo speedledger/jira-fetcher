@@ -1,7 +1,7 @@
 jira-fetcher
 ============
 
-Fetch data about issues and the issue's changelogs from Jira and store in elasticsearch.
+Fetch data about issues and the issues's changelogs from Jira and store in elasticsearch.
 
 Setup
 -----
