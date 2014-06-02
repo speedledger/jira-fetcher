@@ -1,5 +1,6 @@
 import AssemblyKeys._
 import DockerKeys._
+import sbtdocker.Instructions.EntryPoint
 import sbtdocker.{ImageName, Dockerfile}
 
 dockerSettings
@@ -43,7 +44,7 @@ dockerfile in docker := {
   new Dockerfile {
     from("docker-registry.speedledger.net/java")
     add(artifact, artifactTargetPath)
-    entryPoint("java", "-jar", artifactTargetPath)
+    addInstruction(EntryPoint.shell("java", "$JAVA_OPTIONS", "-jar", artifactTargetPath))
   }
 }
 
