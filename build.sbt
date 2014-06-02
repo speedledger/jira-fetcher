@@ -42,7 +42,7 @@ dockerfile in docker := {
   val artifact = (outputPath in assembly).value
   val artifactTargetPath = s"/srv/jira-fetcher/${artifact.name}"
   new Dockerfile {
-    from("docker-registry.speedledger.net/java")
+    from("docker-registry.speedledger.net/jira-fetcher-conf")
     add(artifact, artifactTargetPath)
     addInstruction(EntryPoint.shell("java", "$JAVA_OPTIONS", "-jar", artifactTargetPath))
   }
