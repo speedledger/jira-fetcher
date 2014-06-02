@@ -1,4 +1,8 @@
 import AssemblyKeys._
+import DockerKeys._
+import sbtdocker.{ImageName, Dockerfile}
+
+dockerSettings
 
 organization  := "com.speedledger"
 
@@ -30,3 +34,22 @@ libraryDependencies ++= {
 }
 
 assemblySettings
+
+docker <<= (docker dependsOn assembly)
+
+dockerfile in docker := {
+  val artifact = (outputPath in assembly).value
+  val artifactTargetPath = s"/srv/jira-fetcher/${artifact.name}"
+  new Dockerfile {
+    from("docker-registry.speedledger.net/java")
+    add(artifact, artifactTargetPath)
+    entryPoint("java", "-jar", artifactTargetPath)
+  }
+}
+
+imageName in docker := {
+  ImageName(
+    registry = Some("docker-registry.speedledger.net"),
+    repository = name.value,
+    tag = Some("v" + version.value))
+}

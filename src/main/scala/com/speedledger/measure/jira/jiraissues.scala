@@ -23,7 +23,7 @@ class JiraIssueActor extends Actor with ActorLogging with JsonSupport with JiraS
   import context.dispatcher
   val elasticsearch = context.actorSelection("/user/elasticsearch")
   val pipeline: HttpRequest ⇒ Future[JValue] = addCredentials(BasicHttpCredentials(userName, password)) ~> (sendReceive ~> unmarshal[JValue])
-  context.setReceiveTimeout(10 minutes)
+  context.setReceiveTimeout(1 hours)
 
   override def receive = receiveJiraIssue
 
