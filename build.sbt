@@ -50,6 +50,5 @@ dockerfile in docker := {
 imageName in docker := {
   ImageName(
     registry = Some("docker-registry.speedledger.net"),
-    repository = name.value,
-    tag = Some("v" + version.value))
+    repository = name.value)
 }
