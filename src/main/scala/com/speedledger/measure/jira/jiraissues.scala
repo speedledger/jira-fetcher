@@ -4,10 +4,10 @@ import akka.actor.{ActorLogging, Actor}
 import org.json4s.JsonAST.{JObject, JValue}
 import spray.client.pipelining._
 import spray.http.{HttpRequest, BasicHttpCredentials}
-import scala.util.{Failure, Success}
 import org.json4s.JsonDSL._
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import akka.pattern.pipe
 
 case class JiraIssue(issue: JValue, issueKey: IssueKey)
 case class ChangelogId(id: String)
@@ -54,29 +54,31 @@ class JiraIssueActor extends Actor with ActorLogging with JsonSupport with JiraS
     val key = issueKey.key
     val url = s"$issueUrl/$key?expand=changelog"
     log.debug("Getting issue changelog for issue: " + key)
-    val originalSender = sender()
-    pipeline(Get(url)) onComplete {
-      case Success(response) =>
-        val histories = response \ "changelog" \ "histories"
-        val changelogIds = histories.children.map({
-          case history: JObject => processChangelog(history, key)
-        }).toSet
-        if (changelogIds.isEmpty) {
-          log.debug("No changelogs for issue: " + issueKey.key)
-          context.parent ! IssueAck(issueKey)
-          context.stop(self)
-        } else {
-          context.become(awaitChangelogAck(changelogIds, issueKey))
-        }
-      case Failure(ex) =>
-        originalSender ! ex
-    }
+    pipeline(Get(url)) pipeTo self
+    context.become(awaitChangelogRequest(issueKey))
+  }
+
+  def awaitChangelogRequest(issueKey: IssueKey): Receive = {
+    case response: JValue =>
+      val histories = response \ "changelog" \ "histories"
+      val changelogIds = histories.children.map({
+        case history: JObject => processChangelog(history, issueKey.key)
+      }).toSet
+      if (changelogIds.isEmpty) {
+        log.debug("No changelogs for issue: " + issueKey.key)
+        context.parent ! IssueAck(issueKey)
+        context.stop(self)
+      } else {
+        context.become(awaitChangelogAck(changelogIds, issueKey))
+      }
+    case akka.actor.Status.Failure(ex) =>
+      context.parent ! ex
   }
 
   def processChangelog(history: JObject, key: String): String = {
     val changelogId = history.extract[ChangelogId]
     val historyWithIssueName = history ~ ("issueName" -> key)
-    log.debug("Sending changelog to elastic for issue: " + key)
+    log.debug(s"Sending changelog $changelogId to elastic for issue: $key")
     elasticsearch ! ElasticData(DocumentLocation("jira", "changelog", changelogId.id), historyWithIssueName, ElasticChangelogAck(changelogId))
     changelogId.id
   }
