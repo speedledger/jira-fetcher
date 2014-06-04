@@ -25,7 +25,6 @@ class JiraActor extends Actor with ActorLogging with JsonSupport with JiraSuppor
 
   import context.dispatcher
   val pipeline: HttpRequest ⇒ Future[SearchResponse] = addCredentials(BasicHttpCredentials(userName, password)) ~> (sendReceive ~> unmarshal[SearchResponse])
-  context.setReceiveTimeout(Duration(1, TimeUnit.HOURS))
 
   def receive = receiveUpdate
 
@@ -33,6 +32,7 @@ class JiraActor extends Actor with ActorLogging with JsonSupport with JiraSuppor
     case Update(lastTime) =>
       val jql = createJql(lastTime)
       fetchIssues(jql, startAt = 0)
+      context.setReceiveTimeout(Duration(1, TimeUnit.HOURS))
   }
 
   def createJql(lastTime: time.DateTime): String = {
@@ -91,6 +91,7 @@ class JiraActor extends Actor with ActorLogging with JsonSupport with JiraSuppor
             log.debug("No more issues and empty query")
             context.become(receiveUpdate)
             context.parent ! Tock
+            context.setReceiveTimeout(Duration.Undefined)
         }
       } else {
         log.debug("Waiting for ack from more issues: " + updatedIssueKeys.toString())
